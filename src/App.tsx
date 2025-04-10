@@ -17,10 +17,44 @@ import BookingPage from "@/pages/BookingPage";
 import { ParkingProvider } from '@/contexts/ParkingContext';
 import FacilityBooking from './pages/FacilityBooking';
 import PaymentPage from './pages/PaymentPage';
+import { useEffect, useState } from 'react'
+import { supabase } from './lib/supabase'
+import { User } from '@supabase/supabase-js'
+import { TestBooking } from './components/TestBooking';
+import TestPage from './pages/TestPage';
+import { BookingHistory } from '@/components/BookingHistory';
 
 const queryClient = new QueryClient();
 
-const App = () => (
+const App = () => {
+  const [user, setUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    // Check for initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  return (
+    <div>
+      {user ? (
+        <AuthenticatedApp user={user} />
+      ) : (
+        <UnauthenticatedApp />
+      )}
+    </div>
+  )
+}
+
+const AuthenticatedApp = ({ user }: { user: User }) => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
@@ -39,14 +73,23 @@ const App = () => (
               <Route path="/book/:facilityId" element={<FacilityBooking />} />
               <Route path="/payment" element={<PaymentPage />} />
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+              <Route path="/test" element={<TestPage />} />
+              <Route path="/my-bookings" element={<BookingHistory />} />
               {/* Keep the catch-all route last */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Router>
+          <TestBooking />
         </ParkingProvider>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
+);
+
+const UnauthenticatedApp = () => (
+  <div>
+    {/* Placeholder for unauthenticated app */}
+  </div>
 );
 
 export default App;

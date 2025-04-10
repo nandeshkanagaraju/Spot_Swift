@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
+import { supabase } from '@/lib/supabase';
 
 interface BookingFormProps {
   facilityId: string;
@@ -115,27 +116,58 @@ const BookingForm = ({
     setIsSubmitting(true);
 
     try {
-      const bookingData = {
-        facilityId,
-        facilityName,
-        spotNumber,
-        type,
-        date,
-        startTime,
-        endTime,
-        price: totalPrice,
-        status: 'confirmed',
-        userDetails,
-        bookingTime: new Date().toISOString()
-      };
+      // First, create or get parking spot
+      const { data: spotData, error: spotError } = await supabase
+        .from('parking_spots')
+        .insert({
+          spot_number: spotNumber,
+          location: facilityName,
+          price_per_hour: baseRates[type],
+          is_available: true
+        })
+        .select()
+        .single();
 
-      // Store booking in localStorage
-      const existingBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-      const newBooking = {
-        ...bookingData,
-        id: `booking-${Date.now()}`
-      };
-      localStorage.setItem('bookings', JSON.stringify([...existingBookings, newBooking]));
+      if (spotError) {
+        // If spot already exists, try to get it
+        const { data: existingSpot, error: getSpotError } = await supabase
+          .from('parking_spots')
+          .select()
+          .eq('spot_number', spotNumber)
+          .single();
+
+        if (getSpotError) throw getSpotError;
+        spotData = existingSpot;
+      }
+
+      // Create the booking
+      const startDateTime = new Date(`${date}T${startTime}`);
+      const endDateTime = new Date(`${date}T${endTime}`);
+      
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert({
+          parking_spot_id: spotData.id,
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          vehicle_number: userDetails.vehicleNumber,
+          total_amount: totalPrice,
+          status: 'pending',
+          payment_status: 'pending',
+          user_details: userDetails // Store user details in a JSONB column
+        })
+        .select()
+        .single();
+
+      if (bookingError) throw bookingError;
+
+      // Update spot availability
+      const { error: updateSpotError } = await supabase
+        .from('parking_spots')
+        .update({ is_available: false })
+        .eq('id', spotData.id);
+
+      if (updateSpotError) throw updateSpotError;
 
       toast({
         title: "Booking Successful!",
@@ -146,12 +178,22 @@ const BookingForm = ({
         onBookingComplete();
       }
 
-      navigate('/booking-confirmation');
+      // Navigate to confirmation page with booking details
+      navigate('/booking-confirmation', {
+        state: { 
+          booking: {
+            ...bookingData,
+            facilityName,
+            spotNumber
+          }
+        }
+      });
 
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Booking error:', error);
       toast({
         title: "Booking Failed",
-        description: "There was an error processing your booking. Please try again.",
+        description: error.message || "There was an error processing your booking. Please try again.",
         variant: "destructive"
       });
     } finally {

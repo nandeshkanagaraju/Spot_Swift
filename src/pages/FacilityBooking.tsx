@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/use-toast';
 import Header from '@/components/Header';
 import { ArrowLeft } from 'lucide-react';
 import StatusLegend from '@/components/StatusLegend';
+import { supabase } from '@/lib/supabase';
 
 interface ParkingSpot {
   id: string;
@@ -100,30 +101,108 @@ const FacilityBooking = () => {
       return;
     }
 
-    const booking = {
-      id: `BOOK-${Date.now()}`,
-      facilityId,
-      spotId: selectedSpot.id,
-      ...bookingDetails,
-      spotNumber: selectedSpot.number,
-      facilityName: facility.name,
-      spotType: selectedSpot.type,
-      totalAmount: calculateTotal(),
-      createdAt: new Date().toISOString()
-    };
+    setIsSubmitting(true);
 
-    // Navigate to payment page with booking details
-    navigate('/payment', {
-      state: { 
-        bookingDetails: booking,
-        paymentDetails: {
-          bookingId: booking.id,
-          amount: booking.totalAmount,
-          facilityName: booking.facilityName,
-          spotNumber: booking.spotNumber
-        }
+    try {
+      // First, create or get parking spot in Supabase
+      const { data: spotData, error: spotError } = await supabase
+        .from('parking_spots')
+        .insert({
+          spot_number: selectedSpot.number,
+          location: facility.name,
+          price_per_hour: selectedSpot.rate,
+          is_available: true
+        })
+        .select()
+        .single();
+
+      if (spotError) {
+        // If spot already exists, try to get it
+        const { data: existingSpot, error: getSpotError } = await supabase
+          .from('parking_spots')
+          .select()
+          .eq('spot_number', selectedSpot.number)
+          .single();
+
+        if (getSpotError) throw getSpotError;
+        spotData = existingSpot;
       }
-    });
+
+      // Create the booking in Supabase
+      const startDateTime = new Date(`${bookingDetails.date}T${bookingDetails.startTime}`);
+      const endDateTime = new Date(`${bookingDetails.date}T${bookingDetails.endTime}`);
+      
+      const bookingInsertData = {
+        parking_spot_id: spotData.id,
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        vehicle_number: bookingDetails.vehicleNumber,
+        total_amount: calculateTotal(),
+        status: 'pending',
+        payment_status: 'pending',
+        user_details: {
+          name: bookingDetails.name,
+          email: bookingDetails.email,
+          phone: bookingDetails.phone,
+          vehicle_type: bookingDetails.vehicleType
+        }
+      };
+
+      console.log('Creating booking with data:', bookingInsertData);
+
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .insert(bookingInsertData)
+        .select()
+        .single();
+
+      if (bookingError) {
+        console.error('Booking error:', bookingError);
+        throw bookingError;
+      }
+
+      console.log('Booking created successfully:', bookingData);
+
+      // Update spot availability
+      const { error: updateSpotError } = await supabase
+        .from('parking_spots')
+        .update({ is_available: false })
+        .eq('id', spotData.id);
+
+      if (updateSpotError) throw updateSpotError;
+
+      toast({
+        title: "Booking Successful!",
+        description: `Your parking spot ${selectedSpot.number} has been reserved.`,
+      });
+
+      // Navigate to payment page with booking details
+      navigate('/payment', {
+        state: { 
+          bookingDetails: {
+            ...bookingData,
+            facilityName: facility.name,
+            spotNumber: selectedSpot.number
+          },
+          paymentDetails: {
+            bookingId: bookingData.id,
+            amount: bookingData.total_amount,
+            facilityName: facility.name,
+            spotNumber: selectedSpot.number
+          }
+        }
+      });
+
+    } catch (error: any) {
+      console.error('Error:', error);
+      toast({
+        title: "Booking Failed",
+        description: error.message || "There was an error processing your booking. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
