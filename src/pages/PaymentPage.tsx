@@ -50,6 +50,65 @@ const PaymentPage = () => {
     );
   }
 
+  const handlePaymentSuccess = async (paymentMethod: string) => {
+    try {
+      // 1. Add to Reservations
+      const existingReservations = JSON.parse(localStorage.getItem('reservations') || '[]');
+      const newReservation = {
+        id: `res-${Date.now()}`,
+        facilityName: paymentDetails.facilityName,
+        spotNumber: paymentDetails.spotNumber,
+        date: new Date(location.state?.bookingDetails.start_time).toISOString().split('T')[0],
+        startTime: new Date(location.state?.bookingDetails.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        endTime: new Date(location.state?.bookingDetails.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: "upcoming",
+        price: `₹${paymentDetails.amount.toFixed(2)}`,
+        location: paymentDetails.facilityName,
+        vehicle_number: location.state?.bookingDetails.vehicle_number,
+        payment_status: 'completed',
+        payment_method: paymentMethod
+      };
+      localStorage.setItem('reservations', JSON.stringify([...existingReservations, newReservation]));
+
+      // 2. Add to Calendar
+      const existingEvents = JSON.parse(localStorage.getItem('calendarEvents') || '[]');
+      const startDateTime = new Date(location.state?.bookingDetails.start_time);
+      const endDateTime = new Date(location.state?.bookingDetails.end_time);
+      
+      const calendarEvent = {
+        id: newReservation.id,
+        title: `Parking at ${paymentDetails.facilityName}`,
+        startTime: startDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        endTime: endDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        tag: "parking",
+        facility: paymentDetails.facilityName,
+        spotNumber: paymentDetails.spotNumber,
+        price: `₹${paymentDetails.amount.toFixed(2)}`,
+        dates: [startDateTime], // The calendar component expects dates in this format
+        status: "upcoming"
+      };
+      localStorage.setItem('calendarEvents', JSON.stringify([...existingEvents, calendarEvent]));
+
+      // 3. Navigate to confirmation page
+      navigate('/booking-confirmation', {
+        state: { 
+          bookingDetails: {
+            ...location.state?.bookingDetails,
+            payment_status: 'completed',
+            payment_method: paymentMethod
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Error saving booking:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save booking",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleCardPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsProcessing(true);
@@ -57,21 +116,12 @@ const PaymentPage = () => {
       // Simulate payment processing
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Success
       toast({
         title: "Payment Successful",
         description: "Your booking has been confirmed",
       });
       
-      navigate('/booking-confirmation', {
-        state: { 
-          bookingDetails: {
-            ...location.state?.bookingDetails,
-            paymentStatus: 'completed',
-            paymentMethod: 'card'
-          }
-        }
-      });
+      await handlePaymentSuccess('card');
     } catch (error) {
       toast({
         title: "Payment Failed",
@@ -95,15 +145,7 @@ const PaymentPage = () => {
         description: "Your booking has been confirmed",
       });
       
-      navigate('/booking-confirmation', {
-        state: { 
-          bookingDetails: {
-            ...location.state?.bookingDetails,
-            paymentStatus: 'completed',
-            paymentMethod: 'upi'
-          }
-        }
-      });
+      await handlePaymentSuccess('upi');
     } catch (error) {
       toast({
         title: "Payment Failed",
@@ -136,15 +178,7 @@ const PaymentPage = () => {
         description: "Your booking has been confirmed",
       });
       
-      navigate('/booking-confirmation', {
-        state: { 
-          bookingDetails: {
-            ...location.state?.bookingDetails,
-            paymentStatus: 'completed',
-            paymentMethod: 'netbanking'
-          }
-        }
-      });
+      await handlePaymentSuccess('netbanking');
     } catch (error) {
       toast({
         title: "Payment Failed",

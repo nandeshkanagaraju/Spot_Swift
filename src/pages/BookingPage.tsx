@@ -37,8 +37,8 @@ const BookingPage = () => {
     // This is mock data for demonstration
     setFacilityInfo({
       id: facilityId || "",
-      name: "Connaught Place Parking Complex",
-      address: "Block A, Connaught Place, New Delhi",
+      name: "Inorbit Mall Parking",
+      address: "Inorbit Mall, Whitefield Main Road, Bangalore",
       pricePerHour: 60,
       image: "https://images.unsplash.com/photo-1545179605-1296651e9d43?w=800&auto=format&fit=crop&q=60",
     });

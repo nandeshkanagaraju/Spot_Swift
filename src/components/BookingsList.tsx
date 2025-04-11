@@ -14,7 +14,7 @@ const BookingsList = () => {
 
   const loadBookings = async () => {
     try {
-      const data = await bookingService.getUserBookings('test@example.com'); // We'll update this with actual user email later
+      const data = await bookingService.getUserBookings(user.email);
       setBookings(data);
     } catch (error) {
       console.error('Error loading bookings:', error);

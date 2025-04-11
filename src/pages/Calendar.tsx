@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useBooking } from '@/contexts/BookingContext';
 
 // Mock data for parking facilities in India
 const parkingFacilities = [
@@ -82,6 +83,7 @@ const Calendar = () => {
   const [selectedFacility, setSelectedFacility] = useState(parkingFacilities[0]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState("10:00 AM - 12:00 PM");
   const [spotNumber, setSpotNumber] = useState("A01");
+  const { calendarEvents } = useBooking();
 
   useEffect(() => {
     if (!user) {
@@ -97,6 +99,11 @@ const Calendar = () => {
       // This would be replaced with actual API call to get reservations
     }
   }, [user, navigate, toast]);
+
+  useEffect(() => {
+    // Your calendar events will now automatically stay in sync
+    // with the bookings through the shared context
+  }, [calendarEvents]);
 
   const nextMonth = () => {
     setCurrentMonth(addMonths(currentMonth, 1));

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import BookingForm from '@/components/BookingForm';
 import SpotBookingSystem from '@/components/SpotBookingSystem';
+import InteractiveSpotSelector from '@/components/InteractiveSpotSelector';
 
 interface ParkingSpot {
   id: string;
@@ -68,8 +69,7 @@ const BookParkingSpot = () => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="lg:sticky lg:top-4">
-              <SpotBookingSystem
-                facilityId={facilityData.id}
+              <InteractiveSpotSelector
                 facilityName={facilityData.name}
                 selectedSpot={selectedSpot}
                 onSpotSelect={setSelectedSpot}

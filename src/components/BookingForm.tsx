@@ -178,11 +178,17 @@ const BookingForm = ({
         onBookingComplete();
       }
 
-      // Navigate to confirmation page with booking details
-      navigate('/booking-confirmation', {
+      // Navigate to payment page with booking details
+      navigate('/payment', {
         state: { 
-          booking: {
+          bookingDetails: {
             ...bookingData,
+            facilityName,
+            spotNumber
+          },
+          paymentDetails: {
+            bookingId: bookingData.id,
+            amount: bookingData.total_amount,
             facilityName,
             spotNumber
           }

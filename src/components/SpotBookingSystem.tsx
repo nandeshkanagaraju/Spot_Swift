@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Car, Info } from 'lucide-react';
+import { ArrowLeft, Car, Info, Battery, Wheelchair, ArrowRight } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { motion } from 'framer-motion';
 
 interface ParkingSpot {
   id: string;
@@ -35,6 +37,7 @@ const SpotBookingSystem = ({
   const [selectedLevel, setSelectedLevel] = useState('L1');
   const [selectedBlock, setSelectedBlock] = useState('A');
   const [selectedVehicleType, setSelectedVehicleType] = useState('all');
+  const [hoveredSpot, setHoveredSpot] = useState<string | null>(null);
 
   const vehicleTypes = [
     { id: 'all', label: 'All Vehicles' },
@@ -106,6 +109,141 @@ const SpotBookingSystem = ({
     }
   };
 
+  const getRandomFutureTime = () => {
+    const now = new Date();
+    const futureDate = new Date(now.getTime() + Math.random() * 24 * 60 * 60 * 1000);
+    return futureDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const SpotCard = ({ spot }: { spot: ParkingSpot }) => {
+    const typeDetails = getSpotTypeDetails(spot.type);
+    const isSelected = selectedSpot?.id === spot.id;
+    const isHovered = hoveredSpot === spot.id;
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <motion.button
+              disabled={spot.status !== 'available'}
+              onClick={() => onSpotSelect(spot)}
+              onHoverStart={() => setHoveredSpot(spot.id)}
+              onHoverEnd={() => setHoveredSpot(null)}
+              whileHover={{ scale: 1.02, y: -5 }}
+              whileTap={{ scale: 0.98 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 300 }}
+              className={`
+                relative w-full p-4 rounded-lg border-2 transition-all transform
+                ${spot.status !== 'available'
+                  ? 'bg-gray-50 cursor-not-allowed' 
+                  : isSelected
+                    ? 'border-blue-500 bg-blue-50 shadow-lg'
+                    : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50 hover:shadow-md'}
+                ${isHovered ? 'z-10' : 'z-0'}
+              `}
+            >
+              <div className="text-center space-y-2">
+                {/* 3D-like spot number */}
+                <div className={`
+                  absolute -top-3 -right-3 w-8 h-8 rounded-full
+                  flex items-center justify-center text-sm font-bold
+                  ${isSelected ? 'bg-blue-500 text-white' : 'bg-gray-100'}
+                  transform ${isHovered ? 'scale-110' : ''}
+                  transition-transform shadow-md
+                `}>
+                  {spot.number}
+                </div>
+
+                {/* Spot type icon with 3D effect */}
+                <div className={`
+                  text-3xl transform
+                  ${isHovered ? 'scale-110 -translate-y-1' : ''}
+                  transition-transform duration-200
+                `}>
+                  {typeDetails.icon}
+                </div>
+
+                {/* Spot details */}
+                <div>
+                  <div className="font-medium capitalize">{typeDetails.label}</div>
+                  <div className="text-sm text-gray-600">₹{spot.rate}/hr</div>
+                </div>
+
+                {/* Status badge with glow effect */}
+                <Badge
+                  className={`
+                    absolute top-2 left-2
+                    ${getStatusColor(spot.status)}
+                    ${spot.status === 'available' ? 'animate-pulse' : ''}
+                  `}
+                >
+                  {spot.status}
+                </Badge>
+
+                {/* Vehicle info if occupied */}
+                {spot.vehicleType && (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-xs text-gray-600 flex items-center justify-center gap-1"
+                  >
+                    <Car className="h-3 w-3" />
+                    {spot.vehicleType}
+                  </motion.div>
+                )}
+
+                {/* Feature icons */}
+                <div className="absolute bottom-2 left-2 flex gap-1">
+                  {spot.type === 'electric' && <Battery className="h-4 w-4 text-blue-500" />}
+                  {spot.type === 'accessible' && <Wheelchair className="h-4 w-4 text-blue-500" />}
+                </div>
+              </div>
+            </motion.button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="p-3 max-w-xs">
+            <div className="space-y-2">
+              <p className="font-medium">{typeDetails.label} Spot {spot.number}</p>
+              <p className="text-sm text-gray-600">{typeDetails.description}</p>
+              {spot.status === 'available' && (
+                <p className="text-sm text-green-600">Available Now</p>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  // Add mini-map component
+  const MiniMap = () => (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="fixed bottom-4 right-4 bg-white p-3 rounded-lg shadow-lg border"
+    >
+      <div className="text-sm font-medium mb-2">Level {selectedLevel} Overview</div>
+      <div className="grid grid-cols-4 gap-1">
+        {Array.from({ length: 16 }).map((_, i) => (
+          <motion.div
+            key={i}
+            whileHover={{ scale: 1.2 }}
+            className={`
+              w-3 h-3 rounded-sm cursor-pointer
+              ${i === blocks.indexOf(selectedBlock) ? 'bg-blue-500' : 'bg-gray-200'}
+            `}
+            onClick={() => {
+              if (i < blocks.length) {
+                setSelectedBlock(blocks[i]);
+              }
+            }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation Bar */}
@@ -163,51 +301,104 @@ const SpotBookingSystem = ({
             </div>
           </Card>
 
-          {/* Level Selection */}
-          <Card className="p-4">
+          {/* Level Selection with 3D effect */}
+          <Card className="p-4 relative overflow-hidden">
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-blue-50 to-transparent"
+              animate={{
+                x: [0, 100, 0],
+              }}
+              transition={{
+                duration: 5,
+                repeat: Infinity,
+                repeatType: "reverse",
+              }}
+            />
             <h3 className="text-lg font-semibold mb-4">Select Parking Level</h3>
             <div className="grid grid-cols-3 gap-3">
               {levels.map((level) => (
-                <Button
+                <motion.button
                   key={level}
-                  variant={selectedLevel === level ? "default" : "outline"}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => setSelectedLevel(level)}
-                  className="h-16"
+                  className={`
+                    relative h-16 rounded-lg transition-all
+                    ${selectedLevel === level 
+                      ? 'bg-blue-500 text-white shadow-lg' 
+                      : 'bg-white border-2 border-gray-200 hover:border-blue-200'}
+                  `}
                 >
                   <div className="text-center">
                     <div className="text-lg font-semibold">Level {level.replace('L', '')}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs opacity-75">
                       {level === selectedLevel ? 'Selected' : 'Click to select'}
                     </div>
                   </div>
-                </Button>
+                </motion.button>
               ))}
             </div>
           </Card>
 
-          {/* Block Selection */}
+          {/* Block Selection with Navigation */}
           <Card className="p-4">
-            <h3 className="text-lg font-semibold mb-4">Select Block</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Select Block</h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const currentIndex = blocks.indexOf(selectedBlock);
+                    if (currentIndex > 0) {
+                      setSelectedBlock(blocks[currentIndex - 1]);
+                    }
+                  }}
+                  disabled={blocks.indexOf(selectedBlock) === 0}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const currentIndex = blocks.indexOf(selectedBlock);
+                    if (currentIndex < blocks.length - 1) {
+                      setSelectedBlock(blocks[currentIndex + 1]);
+                    }
+                  }}
+                  disabled={blocks.indexOf(selectedBlock) === blocks.length - 1}
+                >
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
             <div className="grid grid-cols-4 gap-3">
               {blocks.map((block) => (
-                <Button
+                <motion.button
                   key={block}
-                  variant={selectedBlock === block ? "default" : "outline"}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => setSelectedBlock(block)}
-                  className="h-16"
+                  className={`
+                    h-16 rounded-lg transition-all
+                    ${selectedBlock === block 
+                      ? 'bg-blue-500 text-white shadow-lg' 
+                      : 'bg-white border-2 border-gray-200 hover:border-blue-200'}
+                  `}
                 >
                   <div className="text-center">
                     <div className="text-lg font-semibold">Block {block}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs opacity-75">
                       {block === selectedBlock ? 'Selected' : 'Click to select'}
                     </div>
                   </div>
-                </Button>
+                </motion.button>
               ))}
             </div>
           </Card>
 
-          {/* Spots Grid */}
+          {/* Spots Grid with enhanced visuals */}
           <Card className="p-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Available Spots</h3>
@@ -217,128 +408,90 @@ const SpotBookingSystem = ({
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {currentSpots.map((spot) => {
-                const typeDetails = getSpotTypeDetails(spot.type);
-                return (
-                  <button
-                    key={spot.id}
-                    disabled={spot.status !== 'available'}
-                    onClick={() => onSpotSelect(spot)}
-                    className={`
-                      relative p-4 rounded-lg border-2 transition-all
-                      ${spot.status !== 'available'
-                        ? 'bg-gray-50 cursor-not-allowed' 
-                        : selectedSpot?.id === spot.id
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50'}
-                    `}
-                  >
-                    <div className="text-center space-y-2">
-                      <span className="text-2xl">{typeDetails.icon}</span>
-                      <div>
-                        <div className="font-medium">Spot {spot.number}</div>
-                        <div className="text-sm text-gray-600 capitalize">{typeDetails.label}</div>
-                      </div>
-                      <div className="text-sm font-medium">₹{spot.rate}/hr</div>
-                      <Badge
-                        className={`absolute top-2 right-2 ${getStatusColor(spot.status)}`}
-                      >
-                        {spot.status}
-                      </Badge>
-                      {spot.vehicleType && (
-                        <div className="text-xs text-gray-600">
-                          <Car className="inline h-3 w-3 mr-1" />
-                          {spot.vehicleType}
-                        </div>
-                      )}
-                      {spot.occupiedUntil && (
-                        <div className="text-xs text-gray-600">
-                          Until: {spot.occupiedUntil}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+              {currentSpots.map((spot) => (
+                <SpotCard key={spot.id} spot={spot} />
+              ))}
             </div>
           </Card>
 
-          {/* Selected Spot Details */}
+          {/* Selected Spot Details with enhanced visuals */}
           {selectedSpot && (
-            <Card className="p-4 bg-blue-50 border-2 border-blue-200">
-              <div className="space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-lg">Selected Spot Details</h3>
-                    <p className="text-sm text-gray-600">
-                      Level {selectedSpot.level.replace('L', '')} - Block {selectedSpot.block}
-                    </p>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+            >
+              <Card className="p-4 bg-blue-50 border-2 border-blue-200">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-lg">Selected Spot Details</h3>
+                      <p className="text-sm text-gray-600">
+                        Level {selectedSpot.level.replace('L', '')} - Block {selectedSpot.block}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onSpotSelect(null)}
+                    >
+                      Change Selection
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onSpotSelect(null)}
-                  >
-                    Change Selection
-                  </Button>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4 bg-white p-4 rounded-lg">
-                  <div>
-                    <p className="text-sm text-gray-600">Spot Number</p>
-                    <p className="font-medium text-lg">{selectedSpot.number}</p>
+                  <div className="grid grid-cols-2 gap-4 bg-white p-4 rounded-lg">
+                    <div>
+                      <p className="text-sm text-gray-600">Spot Number</p>
+                      <p className="font-medium text-lg">{selectedSpot.number}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Type</p>
+                      <p className="font-medium text-lg capitalize flex items-center gap-2">
+                        {getSpotTypeDetails(selectedSpot.type).icon} {selectedSpot.type}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Rate</p>
+                      <p className="font-medium text-lg">₹{selectedSpot.rate}/hour</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Status</p>
+                      <Badge variant="success" className="mt-1">
+                        Available
+                      </Badge>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Type</p>
-                    <p className="font-medium text-lg capitalize flex items-center gap-2">
-                      {getSpotTypeDetails(selectedSpot.type).icon} {selectedSpot.type}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Rate</p>
-                    <p className="font-medium text-lg">₹{selectedSpot.rate}/hour</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-600">Status</p>
-                    <Badge variant="success" className="mt-1">
-                      Available
-                    </Badge>
-                  </div>
-                </div>
 
-                <div className="text-sm text-gray-600 bg-white p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Spot Features:</h4>
-                  <ul className="space-y-1">
-                    {selectedSpot.type === 'electric' && (
-                      <li>✓ Equipped with EV charging station</li>
-                    )}
-                    {selectedSpot.type === 'accessible' && (
-                      <li>✓ Extra wide spot with wheelchair access</li>
-                    )}
-                    {selectedSpot.type === 'compact' && (
-                      <li>✓ Optimized for small vehicles</li>
-                    )}
-                    {selectedSpot.type === 'standard' && (
-                      <li>✓ Standard size spot for most vehicles</li>
-                    )}
-                    <li>✓ 24/7 CCTV surveillance</li>
-                    <li>✓ Well-lit area</li>
-                  </ul>
+                  <div className="text-sm text-gray-600 bg-white p-4 rounded-lg">
+                    <h4 className="font-medium mb-2">Spot Features:</h4>
+                    <ul className="space-y-1">
+                      {selectedSpot.type === 'electric' && (
+                        <li>✓ Equipped with EV charging station</li>
+                      )}
+                      {selectedSpot.type === 'accessible' && (
+                        <li>✓ Extra wide spot with wheelchair access</li>
+                      )}
+                      {selectedSpot.type === 'compact' && (
+                        <li>✓ Optimized for small vehicles</li>
+                      )}
+                      {selectedSpot.type === 'standard' && (
+                        <li>✓ Standard size spot for most vehicles</li>
+                      )}
+                      <li>✓ 24/7 CCTV surveillance</li>
+                      <li>✓ Well-lit area</li>
+                    </ul>
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            </motion.div>
           )}
         </div>
       </div>
+
+      {/* Mini-map */}
+      <MiniMap />
     </div>
   );
-};
-
-// Helper function to generate random future time
-const getRandomFutureTime = () => {
-  const now = new Date();
-  const futureDate = new Date(now.getTime() + Math.random() * 5 * 60 * 60 * 1000); // Random time up to 5 hours
-  return futureDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 };
 
 export default SpotBookingSystem; 
